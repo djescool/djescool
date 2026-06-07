@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>NEXUS OS — Life Tracker</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@300;400;500&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="fonts/fonts.css" rel="stylesheet">
+<script src="capacitor.js"></script>
+<script src="local-notifications-plugin.js"></script>
+<script src="chart.umd.min.js"></script>
 <style>
 :root{
   --bg:#050a12;--bg2:#080f1c;
@@ -1687,15 +1689,55 @@ document.getElementById('saveMIT').addEventListener('click',()=>{
   save();
 });
 
+// Capacitor Notifications
+let LocalNotifications = null;
+if (window.capacitorLocalNotifications && window.capacitorLocalNotifications.LocalNotifications) {
+  LocalNotifications = window.capacitorLocalNotifications.LocalNotifications;
+} else if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+  LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+}
+
+if (LocalNotifications) {
+  LocalNotifications.requestPermissions();
+}
+
+async function schedulePillNotification(pill) {
+  if (!LocalNotifications) return;
+  try {
+    const notifications = [];
+    let idCounter = Math.floor(Math.random() * 1000000);
+    for (const time of pill.times) {
+      const [hours, minutes] = time.split(':').map(Number);
+      notifications.push({
+        title: 'Hora de pastilla: ' + pill.name,
+        body: 'Dosis: ' + pill.dose,
+        id: idCounter++,
+        schedule: {
+          on: { hour: hours, minute: minutes },
+          repeats: true
+        }
+      });
+    }
+    if(notifications.length > 0) {
+      await LocalNotifications.schedule({ notifications });
+    }
+  } catch (e) {
+    console.error("Error scheduling notification", e);
+  }
+}
+
 // Add pill
-document.getElementById('addPillBtn').addEventListener('click',()=>{
+document.getElementById('addPillBtn').addEventListener('click', async () => {
   const nm=document.getElementById('pillName').value.trim();const dose=document.getElementById('pillDose').value.trim();
   const t1=document.getElementById('pillT1').value;const t2=document.getElementById('pillT2').value;const color=document.getElementById('pillColor').value;
   if(!nm)return;
   const times=[t1,t2].filter(Boolean);
-  S.pillReminders.push({id:uid(),name:nm,dose:dose||'',times,color});
+  const newPill = {id:uid(),name:nm,dose:dose||'',times,color};
+  S.pillReminders.push(newPill);
   document.getElementById('pillName').value='';document.getElementById('pillDose').value='';
   save();renderPillsToday();
+
+  await schedulePillNotification(newPill);
 });
 
 // Work tasks
